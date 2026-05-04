@@ -1,0 +1,11 @@
+{
+  "name": "pi-profiles",
+  "version": "0.0.1",
+  "description": "Profile switching with Bitwarden for pi.dev",
+  "keywords": [
+    "pi-package"
+  ],
+  "author": "lynexer",
+  "license": "MIT",
+  "packageManager": "pnpm@10.32.1"
+}
