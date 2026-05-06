@@ -9,13 +9,16 @@
   "license": "MIT",
   "packageManager": "pnpm@10.32.1",
   "pi": {
-    "extensions": ["./src/index.ts"]
+    "extensions": [
+      "./src/index.ts"
+    ]
   },
   "scripts": {
     "lint": "biome check --write"
   },
   "dependencies": {
-    "@bitwarden/cli": "^2026.4.1"
+    "@bitwarden/cli": "^2026.4.1",
+    "@mariozechner/pi-tui": "^0.73.0"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.14",

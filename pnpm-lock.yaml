@@ -11,6 +11,9 @@ importers:
       '@bitwarden/cli':
         specifier: ^2026.4.1
         version: 2026.4.1
+      '@mariozechner/pi-tui':
+        specifier: ^0.73.0
+        version: 0.73.0
     devDependencies:
       '@biomejs/biome':
         specifier: ^2.4.14

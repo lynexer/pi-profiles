@@ -31,9 +31,28 @@ function resolveProfile(config: ProfilesConfig, cwd: string) {
 
 export default function (pi: ExtensionAPI) {
     pi.registerCommand('profiles-setup', {
-        description: 'Set up pi-profiles: configure providers, API keys, and directory mappings',
+        description: 'Manage profiles — create, switch, or delete',
         handler: async (_args, ctx) => {
-            await runSetup(ctx);
+            const config = await loadConfig();
+            const active = config ? resolveProfile(config, ctx.cwd)?.name : undefined;
+            const result = await runSetup(ctx, active);
+
+            if (result?.forceActivate) {
+                const freshConfig = await loadConfig();
+                if (!freshConfig) return;
+                const profile = freshConfig.profiles[result.forceActivate];
+                if (!profile) return;
+
+                for (const [envVar, value] of Object.entries(profile.keys)) {
+                    if (value.startsWith('bw://')) {
+                        const secret = await getSecret(value.slice(5));
+                        if (secret) process.env[envVar] = secret;
+                    } else {
+                        process.env[envVar] = value;
+                    }
+                }
+                ctx.ui.notify(`Switched to profile "${result.forceActivate}"`, 'info');
+            }
         }
     });
 
