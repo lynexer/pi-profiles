@@ -9,52 +9,52 @@ export default function (pi: ExtensionAPI) {
     const bw = new BitwardenClient();
 
     pi.registerCommand('profile', {
-        description: 'Show the currently active profile',
-        handler: async (_args, ctx) => {
+        description: "Show active profile, or 'list' to manage profiles",
+        handler: async (args, ctx) => {
             await config.load();
+
+            if (args.trim() === 'list') {
+                const active = config.resolveProfile(ctx.cwd)?.name;
+                const setup = new ProfileSetup(ctx, config, bw);
+                const result = await setup.run(active);
+
+                if (result?.forceActivate) {
+                    await config.load();
+
+                    const profile = config.get().profiles[result.forceActivate];
+
+                    if (!profile) return;
+
+                    const ui = new ProfileUI(ctx);
+                    for (const [envVar, value] of Object.entries(profile.keys)) {
+                        if (value.startsWith('bw://')) {
+                            const unlocked = await ui.unlockBitwarden(bw);
+                            if (!unlocked) return;
+
+                            const secret = await ui.fetchSecret(bw, value.slice(5));
+                            if (secret) process.env[envVar] = secret;
+                        } else {
+                            process.env[envVar] = value;
+                        }
+                    }
+
+                    ctx.ui.notify(`Switched to profile "${result.forceActivate}"`, 'info');
+                }
+
+                return;
+            }
 
             const match = config.resolveProfile(ctx.cwd);
 
             if (!match) {
-                ctx.ui.notify('No profile active for this directory.', 'warning');
+                ctx.ui.notify(
+                    'No profile active for this directory. Try /profile list to set one up.',
+                    'warning'
+                );
                 return;
             }
 
             ctx.ui.notify(`Active profile: "${match.name}" (${match.profile.provider})`, 'info');
-        }
-    });
-
-    pi.registerCommand('profile list', {
-        description: 'Manage profiles — create, switch, or delete',
-        handler: async (_args, ctx) => {
-            await config.load();
-
-            const active = config.resolveProfile(ctx.cwd)?.name;
-            const setup = new ProfileSetup(ctx, config, bw);
-            const result = await setup.run(active);
-
-            if (result?.forceActivate) {
-                await config.load();
-
-                const profile = config.get().profiles[result.forceActivate];
-                if (!profile) return;
-
-                const ui = new ProfileUI(ctx);
-
-                for (const [envVar, value] of Object.entries(profile.keys)) {
-                    if (value.startsWith('bw://')) {
-                        const unlocked = await ui.unlockBitwarden(bw);
-                        if (!unlocked) return;
-
-                        const secret = await ui.fetchSecret(bw, value.slice(5));
-                        if (secret) process.env[envVar] = secret;
-                    } else {
-                        process.env[envVar] = value;
-                    }
-                }
-
-                ctx.ui.notify(`Switched to profile "${result.forceActivate}"`, 'info');
-            }
         }
     });
 
