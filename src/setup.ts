@@ -2,6 +2,14 @@ import type { ExtensionCommandContext } from '@mariozechner/pi-coding-agent';
 import { getSecret, unlock } from './bitwarden.js';
 import { loadConfig, type ProfilesConfig, saveConfig } from './config.js';
 
+const KNOWN_PROVIDERS: Record<string, string> = {
+    anthropic: 'ANTHROPIC_API_KEY',
+    openai: 'OPENAI_API_KEY',
+    google: 'GOOGLE_API_KEY',
+    mistral: 'MISTRAL_API_KEY',
+    groq: 'GROQ_API_KEY'
+};
+
 export async function runSetup(ctx: ExtensionCommandContext): Promise<void> {
     ctx.ui.notify('Welcome to pi-profiles setup!', 'info');
 
@@ -17,6 +25,8 @@ export async function runSetup(ctx: ExtensionCommandContext): Promise<void> {
     const useBitwarden = keyMode === 'Bitwarden (recommended)';
 
     if (useBitwarden) {
+        ctx.ui.notify("Make sure `bw` is installed and you're logged in (`bw login`).", 'info');
+
         const unlocked = await unlock((title, placeholder) => ctx.ui.input(title, placeholder));
 
         if (!unlocked) {
@@ -31,6 +41,7 @@ export async function runSetup(ctx: ExtensionCommandContext): Promise<void> {
         'How many profiles do you want to create?',
         'e.g. 2'
     );
+
     const profileCount = parseInt(profileCountStr ?? '0', 10);
 
     if (!profileCount || profileCount < 1) {
@@ -44,37 +55,38 @@ export async function runSetup(ctx: ExtensionCommandContext): Promise<void> {
         const name = await ctx.ui.input(`Profile ${i + 1} name:`, 'e.g. work, personal');
         if (!name) return;
 
-        const provider = await ctx.ui.select('Provider:', [
-            'anthropic',
-            'openai',
-            'google',
-            'mistral',
-            'groq',
+        const providerChoice = await ctx.ui.select('Provider:', [
+            ...Object.keys(KNOWN_PROVIDERS),
             'other'
         ]);
 
+        if (!providerChoice) return;
+
+        const provider =
+            providerChoice === 'other'
+                ? await ctx.ui.input('Provider name:', 'e.g. my-provider')
+                : providerChoice;
+
         if (!provider) return;
 
-        const resolvedProvider =
-            provider === 'other'
-                ? await ctx.ui.input('Provider name:', 'e.g. my-provider')
-                : provider;
+        const defaultEnvVar = KNOWN_PROVIDERS[provider];
+        let envVar: string | undefined;
 
-        if (!resolvedProvider) return;
+        if (defaultEnvVar) {
+            const envChoice = await ctx.ui.select(
+                `Environment variable for "${provider}" API key:`,
+                [defaultEnvVar, 'Use a different name']
+            );
 
-        const model = await ctx.ui.input('Model ID:', `e.g. claude-sonnet-4-20250514`);
-        if (!model) return;
+            if (!envChoice) return;
 
-        const envVarDefaults: Record<string, string> = {
-            anthropic: 'ANTHROPIC_API_KEY',
-            openai: 'OPENAI_API_KEY',
-            google: 'GOOGLE_API_KEY',
-            mistral: 'MISTRAL_API_KEY',
-            groq: 'GROQ_API_KEY'
-        };
-
-        const defaultEnvVar = envVarDefaults[resolvedProvider] ?? 'API_KEY';
-        const envVar = await ctx.ui.input('Environment variable name for API key:', defaultEnvVar);
+            envVar =
+                envChoice === 'Use a different name'
+                    ? await ctx.ui.input('Environment variable name:', defaultEnvVar)
+                    : envChoice;
+        } else {
+            envVar = await ctx.ui.input('Environment variable name for API key:', 'API_KEY');
+        }
 
         if (!envVar) return;
 
@@ -89,7 +101,6 @@ export async function runSetup(ctx: ExtensionCommandContext): Promise<void> {
             if (!bwItemName) return;
 
             ctx.ui.notify(`Verifying "${bwItemName}" in vault...`, 'info');
-
             const secret = await getSecret(bwItemName);
 
             if (!secret) {
@@ -100,20 +111,18 @@ export async function runSetup(ctx: ExtensionCommandContext): Promise<void> {
                 return;
             }
 
-            ctx.ui.notify('Key verified successfully!', 'info');
+            ctx.ui.notify('Key verified!', 'info');
 
             keyValue = `bw://${bwItemName}`;
         } else {
             const literal = await ctx.ui.input(`API key for "${name}":`, 'sk-...');
-
             if (!literal) return;
 
             keyValue = literal;
         }
 
         config.profiles[name] = {
-            provider: resolvedProvider,
-            model,
+            provider,
             keys: { [envVar]: keyValue }
         };
     }
@@ -123,10 +132,7 @@ export async function runSetup(ctx: ExtensionCommandContext): Promise<void> {
     let addingDirs = true;
 
     while (addingDirs) {
-        const dir = await ctx.ui.input(
-            'Directory path to map (leave blank to finish):',
-            'e.g. ~/work or C:\\Users\\you\\work'
-        );
+        const dir = await ctx.ui.input('Directory path (leave blank to finish):', 'e.g. ~/work');
 
         if (!dir?.trim()) {
             addingDirs = false;
@@ -145,12 +151,11 @@ export async function runSetup(ctx: ExtensionCommandContext): Promise<void> {
     }
 
     const profileNames = Object.keys(config.profiles);
-
     if (profileNames.length > 0) {
-        const defaultProfile = await ctx.ui.select(
-            'Which profile should be used when no directory matches?',
-            [...profileNames, '(none)']
-        );
+        const defaultProfile = await ctx.ui.select('Default profile when no directory matches?', [
+            ...profileNames,
+            '(none)'
+        ]);
 
         if (defaultProfile && defaultProfile !== '(none)') {
             config.defaultProfile = defaultProfile;
@@ -158,6 +163,7 @@ export async function runSetup(ctx: ExtensionCommandContext): Promise<void> {
     }
 
     await saveConfig(config);
-    ctx.ui.notify(`Configuration saved to ~/.pi/agent/profiles.json`, 'info');
-    ctx.ui.notify('Run /profiles to see your active profile, or restart pi to activate.', 'info');
+
+    ctx.ui.notify('Configuration saved to ~/.pi/agent/profiles.json', 'info');
+    ctx.ui.notify('Run /profiles to see your active profile.', 'info');
 }

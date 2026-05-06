@@ -54,10 +54,7 @@ export default function (pi: ExtensionAPI) {
                 return;
             }
 
-            ctx.ui.notify(
-                `Active profile: "${match.name}" (${match.profile.provider}/${match.profile.model})`,
-                'info'
-            );
+            ctx.ui.notify(`Active profile: "${match.name}" (${match.profile.provider})`, 'info');
         }
     });
 
@@ -81,12 +78,9 @@ export default function (pi: ExtensionAPI) {
 
         for (const [envVar, value] of Object.entries(profile.keys)) {
             if (value.startsWith('bw://')) {
-                const itemName = value.slice(5);
-
                 const unlocked = await unlock((title, placeholder) =>
                     ctx.ui.input(title, placeholder)
                 );
-
                 if (!unlocked) {
                     ctx.ui.notify(
                         'pi-profiles: Bitwarden unlock failed — profile not activated.',
@@ -95,11 +89,10 @@ export default function (pi: ExtensionAPI) {
                     return;
                 }
 
-                const secret = await getSecret(itemName);
-
+                const secret = await getSecret(value.slice(5));
                 if (!secret) {
                     ctx.ui.notify(
-                        `pi-profiles: Could not fetch "${itemName}" from vault.`,
+                        `pi-profiles: Could not fetch "${value.slice(5)}" from vault.`,
                         'error'
                     );
                     return;
@@ -111,13 +104,7 @@ export default function (pi: ExtensionAPI) {
             }
         }
 
-        const model = ctx.modelRegistry.find(profile.provider, profile.model);
-
-        if (model) {
-            await pi.setModel(model);
-        }
-
-        ctx.ui.notify(`pi-profiles: "${name}" (${profile.provider}/${profile.model})`, 'info');
+        ctx.ui.notify(`pi-profiles: "${name}" active`, 'info');
     });
 
     pi.on('session_shutdown', async () => {

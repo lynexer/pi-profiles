@@ -5,7 +5,6 @@ import { resolve } from 'node:path';
 
 export interface Profile {
     provider: string;
-    model: string;
     keys: Record<string, string>;
 }
 
