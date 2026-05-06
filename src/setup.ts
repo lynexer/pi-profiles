@@ -180,6 +180,30 @@ export class ProfileSetup {
                     }
                 }
             }
+
+            if (action.action === 'setDefault') {
+                const profileNames = Object.keys(this.config.get().profiles);
+                const target = await this.ctx.ui.select(
+                    'Which profile should be the default?',
+                    profileNames
+                );
+
+                if (target) {
+                    this.config.setDefault(target);
+                    await this.config.save();
+                    this.ctx.ui.notify(`"${target}" set as default profile.`, 'info');
+                }
+
+                continue;
+            }
+
+            if (action.action === 'clearDefault') {
+                this.config.setDefault(undefined);
+
+                await this.config.save();
+
+                this.ctx.ui.notify('Default profile cleared.', 'info');
+            }
         }
     }
 }

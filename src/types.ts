@@ -13,6 +13,8 @@ export type ProfileAction =
     | { action: 'activate'; name: string }
     | { action: 'new' }
     | { action: 'delete'; name: string }
+    | { action: 'setDefault'; name: string }
+    | { action: 'clearDefault' }
     | null;
 
 export const KNOWN_PROVIDERS: Record<string, string> = {

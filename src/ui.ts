@@ -142,19 +142,42 @@ export class ProfileUI {
             ...profileNames.map((name) => {
                 const profile = config.profiles[name];
                 const isActive = name === activeName;
+                const isDefault = name === config.defaultProfile;
                 const usesBitwarden = Object.values(profile.keys).some((v) =>
                     v.startsWith('bw://')
                 );
 
+                const badges = [
+                    isActive ? '✓ active' : null,
+                    isDefault ? '⭐ default' : null,
+                    usesBitwarden ? '🔒 bitwarden' : '🔑 manual'
+                ]
+                    .filter(Boolean)
+                    .join('  ');
+
                 return {
                     value: `activate:${name}`,
-                    label: isActive ? `${name}  ✓ active` : name,
-                    description: `${profile.provider}  ${usesBitwarden ? '🔒 bitwarden' : '🔑 manual'}  ${Object.keys(profile.keys).join(', ')}`
+                    label: name,
+                    description: `${profile.provider}  ${badges}  ${Object.keys(profile.keys).join(', ')}`
                 };
             }),
             { value: 'new', label: '+ New profile', description: 'Add a new provider profile' },
             ...(profileNames.length > 0
                 ? [
+                      {
+                          value: 'setDefault',
+                          label: '⭐ Set default profile',
+                          description: 'Activate a profile when no directory matches'
+                      },
+                      ...(config.defaultProfile
+                          ? [
+                                {
+                                    value: 'clearDefault',
+                                    label: '✕ Clear default profile',
+                                    description: `Currently: ${config.defaultProfile}`
+                                }
+                            ]
+                          : []),
                       {
                           value: 'delete',
                           label: '− Delete a profile',
@@ -173,6 +196,8 @@ export class ProfileUI {
         if (!result) return null;
         if (result === 'new') return { action: 'new' };
         if (result === 'delete') return { action: 'delete', name: '' };
+        if (result === 'setDefault') return { action: 'setDefault', name: '' };
+        if (result === 'clearDefault') return { action: 'clearDefault' };
 
         return { action: 'activate', name: result.replace('activate:', '') };
     }
