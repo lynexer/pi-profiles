@@ -147,16 +147,12 @@ export class ProfileSetup {
                 if (result) {
                     this.config.addProfile(result.name, result.profile);
 
-                    const isFirst = Object.keys(this.config.get().profiles).length === 1;
+                    const setupDirs = await this.ctx.ui.confirm(
+                        'Set up directory mappings?',
+                        'Map directories like ~/work to this profile'
+                    );
 
-                    if (isFirst) {
-                        const setupDirs = await this.ctx.ui.confirm(
-                            'Set up directory mappings?',
-                            'Map directories like ~/work to this profile'
-                        );
-
-                        if (setupDirs) await this.configureDirectories(result.name);
-                    }
+                    if (setupDirs) await this.configureDirectories(result.name);
 
                     await this.config.save();
 
