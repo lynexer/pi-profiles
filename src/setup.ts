@@ -124,8 +124,7 @@ async function showDeletePicker(
 }
 
 async function createProfile(
-    ctx: ExtensionCommandContext,
-    useBitwarden: boolean
+    ctx: ExtensionCommandContext
 ): Promise<{ name: string; profile: Profile } | null> {
     const name = await ctx.ui.input('Profile name:', 'e.g. work, personal');
     if (!name?.trim()) return null;
@@ -134,12 +133,14 @@ async function createProfile(
         ...Object.keys(KNOWN_PROVIDERS),
         'other'
     ]);
+
     if (!providerChoice) return null;
 
     const provider =
         providerChoice === 'other'
             ? await ctx.ui.input('Provider name:', 'e.g. my-provider')
             : providerChoice;
+
     if (!provider) return null;
 
     const defaultEnvVar = KNOWN_PROVIDERS[provider];
@@ -150,7 +151,9 @@ async function createProfile(
             defaultEnvVar,
             'Use a different name'
         ]);
+
         if (!envChoice) return null;
+
         envVar =
             envChoice === 'Use a different name'
                 ? await ctx.ui.input('Environment variable name:', defaultEnvVar)
@@ -161,29 +164,50 @@ async function createProfile(
 
     if (!envVar) return null;
 
+    const keyMode = await ctx.ui.select(`How to store the API key for "${name}"?`, [
+        'Bitwarden (recommended)',
+        'Enter key manually'
+    ]);
+
+    if (!keyMode) return null;
+
+    const useBitwarden = keyMode === 'Bitwarden (recommended)';
     let keyValue: string;
 
     if (useBitwarden) {
+        const unlocked = await unlock((title, placeholder) => ctx.ui.input(title, placeholder));
+
+        if (!unlocked) {
+            ctx.ui.notify('Could not unlock Bitwarden vault.', 'error');
+            return null;
+        }
+
         const bwItemName = await ctx.ui.input(
             `Bitwarden item name for "${name}" ${envVar}:`,
             'e.g. Work Anthropic Key'
         );
+
         if (!bwItemName) return null;
 
         ctx.ui.notify(`Verifying "${bwItemName}" in vault...`, 'info');
+
         const secret = await getSecret(bwItemName);
+
         if (!secret) {
             ctx.ui.notify(
                 `Could not find "${bwItemName}" in vault. Check the item name and try again.`,
                 'error'
             );
+
             return null;
         }
         ctx.ui.notify('Key verified!', 'info');
+
         keyValue = `bw://${bwItemName}`;
     } else {
         const literal = await ctx.ui.input(`API key for "${name}":`, 'sk-...');
         if (!literal) return null;
+
         keyValue = literal;
     }
 
@@ -224,40 +248,6 @@ export async function runSetup(
 ): Promise<{ forceActivate?: string } | undefined> {
     const config = (await loadConfig()) ?? { profiles: {}, directories: {} };
 
-    let useBitwarden = false;
-    const isFirstTime = Object.keys(config.profiles).length === 0;
-
-    if (isFirstTime) {
-        ctx.ui.notify("No profiles found. Let's set up your first one.", 'info');
-        const keyMode = await ctx.ui.select('How would you like to store API keys?', [
-            'Bitwarden (recommended)',
-            'Enter keys manually'
-        ]);
-        if (!keyMode) return;
-        useBitwarden = keyMode === 'Bitwarden (recommended)';
-
-        if (useBitwarden) {
-            const unlocked = await unlock((title, placeholder) => ctx.ui.input(title, placeholder));
-            if (!unlocked) {
-                ctx.ui.notify('Could not unlock Bitwarden vault. Aborting.', 'error');
-                return;
-            }
-            ctx.ui.notify('Vault unlocked!', 'info');
-        }
-    } else {
-        useBitwarden = Object.values(config.profiles).some((p) =>
-            Object.values(p.keys).some((v) => v.startsWith('bw://'))
-        );
-
-        if (useBitwarden) {
-            const unlocked = await unlock((title, placeholder) => ctx.ui.input(title, placeholder));
-            if (!unlocked) {
-                ctx.ui.notify('Could not unlock Bitwarden vault.', 'error');
-                return;
-            }
-        }
-    }
-
     while (true) {
         const action = await showProfileList(ctx, config, activeName);
 
@@ -269,7 +259,8 @@ export async function runSetup(
         }
 
         if (action.action === 'new') {
-            const result = await createProfile(ctx, useBitwarden);
+            const result = await createProfile(ctx);
+
             if (result) {
                 config.profiles[result.name] = result.profile;
 
@@ -278,31 +269,38 @@ export async function runSetup(
                         'Set up directory mappings?',
                         'Map directories like ~/work to this profile'
                     );
+
                     if (setupDirs) await configureDirectories(ctx, config);
                 }
 
                 await saveConfig(config);
+
                 ctx.ui.notify(`Profile "${result.name}" created.`, 'info');
             }
+
             continue;
         }
 
         if (action.action === 'delete') {
             const toDelete = await showDeletePicker(ctx, config);
+
             if (toDelete) {
                 const confirmed = await ctx.ui.confirm(
                     `Delete "${toDelete}"?`,
                     'This cannot be undone'
                 );
+
                 if (confirmed) {
                     delete config.profiles[toDelete];
+
                     for (const [dir, pName] of Object.entries(config.directories)) {
                         if (pName === toDelete) delete config.directories[dir];
                     }
-                    if (config.defaultProfile === toDelete) {
-                        delete config.defaultProfile;
-                    }
+
+                    if (config.defaultProfile === toDelete) delete config.defaultProfile;
+
                     await saveConfig(config);
+
                     ctx.ui.notify(`Profile "${toDelete}" deleted.`, 'info');
                 }
             }
