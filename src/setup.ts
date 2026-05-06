@@ -29,26 +29,44 @@ async function showProfileList(
         ...profileNames.map((name) => {
             const profile = config.profiles[name];
             const isActive = name === activeName;
+            const usesBitwarden = Object.values(profile.keys).some((v) => v.startsWith('bw://'));
+
             return {
                 value: `activate:${name}`,
-                label: isActive ? `${name} ●` : name,
-                description: `${profile.provider} · ${Object.keys(profile.keys).join(', ')}`
+                label: isActive ? `${name}  ✓ active` : name,
+                description: `${profile.provider}  ${usesBitwarden ? '🔒 bitwarden' : '🔑 manual'}  ${Object.keys(profile.keys).join(', ')}`
             };
         }),
-        { value: 'new', label: '+ New profile' },
-        ...(profileNames.length > 0 ? [{ value: 'delete', label: '− Delete a profile' }] : [])
+        { value: 'new', label: '+ New profile', description: 'Add a new provider profile' },
+        ...(profileNames.length > 0
+            ? [
+                  {
+                      value: 'delete',
+                      label: '− Delete a profile',
+                      description: 'Remove an existing profile'
+                  }
+              ]
+            : [])
     ];
 
     return ctx.ui.custom<ProfileAction>((tui, theme, _kb, done) => {
         const container = new Container();
 
-        container.addChild(new DynamicBorder((s: string) => theme.fg('accent', s)));
-        container.addChild(new Text(theme.fg('accent', theme.bold(' pi-profiles')), 1, 0));
+        container.addChild(new DynamicBorder((s: string) => theme.fg('borderAccent', s)));
+        container.addChild(
+            new Text(
+                `  ${theme.fg('accent', theme.bold('pi-profiles'))}  ${theme.fg('muted', 'manage your provider profiles')}`,
+                1,
+                0
+            )
+        );
+
+        container.addChild(new Text(theme.fg('borderAccent', '─'.repeat(40)), 0, 0));
         container.addChild(new Spacer(1));
 
         const list = new SelectList(items, Math.min(items.length + 2, 12), {
             selectedPrefix: (t) => theme.fg('accent', t),
-            selectedText: (t) => theme.fg('accent', t),
+            selectedText: (t) => theme.bg('selectedBg', theme.fg('accent', theme.bold(t))),
             description: (t) => theme.fg('muted', t),
             scrollInfo: (t) => theme.fg('dim', t),
             noMatch: (t) => theme.fg('warning', t)
@@ -60,14 +78,19 @@ async function showProfileList(
             const name = item.value.replace('activate:', '');
             done({ action: 'activate', name });
         };
+
         list.onCancel = () => done(null);
 
         container.addChild(list);
         container.addChild(new Spacer(1));
         container.addChild(
-            new Text(theme.fg('dim', ' ↑↓ navigate · enter select · esc close'), 1, 0)
+            new Text(
+                `  ${theme.fg('dim', '↑↓')} ${theme.fg('muted', 'navigate')}  ${theme.fg('dim', 'enter')} ${theme.fg('muted', 'select')}  ${theme.fg('dim', 'esc')} ${theme.fg('muted', 'close')}`,
+                1,
+                0
+            )
         );
-        container.addChild(new DynamicBorder((s: string) => theme.fg('accent', s)));
+        container.addChild(new DynamicBorder((s: string) => theme.fg('borderAccent', s)));
 
         return {
             render: (w) => container.render(w),
@@ -87,18 +110,30 @@ async function showDeletePicker(
     const names = Object.keys(config.profiles);
     if (names.length === 0) return null;
 
-    const items: SelectItem[] = names.map((name) => ({ value: name, label: name }));
+    const items: SelectItem[] = names.map((name) => ({
+        value: name,
+        label: name,
+        description: `${config.profiles[name].provider} · ${Object.keys(config.profiles[name].keys).join(', ')}`
+    }));
 
     return ctx.ui.custom<string | null>((tui, theme, _kb, done) => {
         const container = new Container();
 
-        container.addChild(new DynamicBorder((s: string) => theme.fg('accent', s)));
-        container.addChild(new Text(theme.fg('warning', theme.bold(' Delete profile')), 1, 0));
+        container.addChild(new DynamicBorder((s: string) => theme.fg('warning', s)));
+        container.addChild(
+            new Text(
+                `  ${theme.fg('warning', theme.bold('Delete profile'))}  ${theme.fg('muted', 'select one to remove')}`,
+                1,
+                0
+            )
+        );
+
+        container.addChild(new Text(theme.fg('warning', '─'.repeat(40)), 0, 0));
         container.addChild(new Spacer(1));
 
         const list = new SelectList(items, Math.min(items.length + 2, 10), {
             selectedPrefix: (t) => theme.fg('warning', t),
-            selectedText: (t) => theme.fg('warning', t),
+            selectedText: (t) => theme.bg('selectedBg', theme.fg('warning', theme.bold(t))),
             description: (t) => theme.fg('muted', t),
             scrollInfo: (t) => theme.fg('dim', t),
             noMatch: (t) => theme.fg('warning', t)
@@ -109,8 +144,14 @@ async function showDeletePicker(
 
         container.addChild(list);
         container.addChild(new Spacer(1));
-        container.addChild(new Text(theme.fg('dim', ' enter delete · esc cancel'), 1, 0));
-        container.addChild(new DynamicBorder((s: string) => theme.fg('accent', s)));
+        container.addChild(
+            new Text(
+                `  ${theme.fg('dim', 'enter')} ${theme.fg('warning', 'delete')}  ${theme.fg('dim', 'esc')} ${theme.fg('muted', 'cancel')}`,
+                1,
+                0
+            )
+        );
+        container.addChild(new DynamicBorder((s: string) => theme.fg('warning', s)));
 
         return {
             render: (w) => container.render(w),
