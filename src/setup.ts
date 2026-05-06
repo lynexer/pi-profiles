@@ -17,7 +17,6 @@ export class ProfileSetup {
 
     async createProfile(): Promise<{ name: string; profile: Profile } | null> {
         const name = await this.ctx.ui.input('Profile name:', 'e.g. work, personal');
-
         if (!name?.trim()) return null;
 
         const providerChoice = await this.ctx.ui.select('Provider:', [
@@ -27,30 +26,17 @@ export class ProfileSetup {
 
         if (!providerChoice) return null;
 
-        const provider =
-            providerChoice === 'other'
-                ? await this.ctx.ui.input('Provider name:', 'e.g. my-provider')
-                : providerChoice;
+        const isKnown = providerChoice !== 'other';
+
+        const provider = isKnown
+            ? providerChoice
+            : await this.ctx.ui.input('Provider name:', 'e.g. my-provider');
 
         if (!provider) return null;
 
-        const defaultEnvVar = KNOWN_PROVIDERS[provider];
-        let envVar: string | undefined;
-
-        if (defaultEnvVar) {
-            const envChoice = await this.ctx.ui.select(`Environment variable for "${provider}":`, [
-                defaultEnvVar,
-                'Use a different name'
-            ]);
-
-            if (!envChoice) return null;
-            envVar =
-                envChoice === 'Use a different name'
-                    ? await this.ctx.ui.input('Environment variable name:', defaultEnvVar)
-                    : envChoice;
-        } else {
-            envVar = await this.ctx.ui.input('Environment variable name:', 'API_KEY');
-        }
+        const envVar = isKnown
+            ? KNOWN_PROVIDERS[provider]
+            : await this.ctx.ui.input('Environment variable name:', 'API_KEY');
 
         if (!envVar) return null;
 
