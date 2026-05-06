@@ -6,53 +6,64 @@ const execFileAsync = promisify(execFile);
 
 function getBwBin(): string {
     const require = createRequire(import.meta.url);
+
     return require.resolve('@bitwarden/cli/build/bw');
 }
 
-let sessionKey: string | undefined;
-const cache = new Map<string, string>();
-
-async function exec(args: string[]): Promise<{ code: number; stdout: string; stderr: string }> {
+async function exec(args: string[]): Promise<{ code: number; stdout: string }> {
     try {
-        const { stdout, stderr } = await execFileAsync(process.execPath, [getBwBin(), ...args]);
-        return { code: 0, stdout, stderr };
+        const { stdout } = await execFileAsync(process.execPath, [getBwBin(), ...args]);
+
+        return { code: 0, stdout };
         // biome-ignore lint/suspicious/noExplicitAny: Catch clause variable type annotation must be 'any' or 'unknown' if specified.
     } catch (err: any) {
-        return { code: err.code ?? 1, stdout: err.stdout ?? '', stderr: err.stderr ?? '' };
+        return { code: err.code ?? 1, stdout: err.stdout ?? '' };
     }
 }
 
-export async function unlock(
-    promptFn: (title: string, placeholder: string) => Promise<string | undefined>
-): Promise<boolean> {
-    if (sessionKey) return true;
+export class BitwardenClient {
+    private sessionKey: string | undefined;
+    private cache = new Map<string, string>();
 
-    const status = await exec(['status', '--raw']);
-    if (status.stdout.includes('unlocked')) return true;
+    async checkStatus(): Promise<'unlocked' | 'locked' | 'error'> {
+        if (this.sessionKey) return 'unlocked';
 
-    const password = await promptFn('Bitwarden master password', 'Unlock your vault');
-    if (!password) return false;
+        try {
+            const result = await exec(['status', '--raw']);
 
-    const result = await exec(['unlock', password, '--raw']);
-    if (result.code !== 0) return false;
+            return result.stdout.includes('unlocked') ? 'unlocked' : 'locked';
+        } catch {
+            return 'error';
+        }
+    }
 
-    sessionKey = result.stdout.trim();
-    return true;
-}
+    async unlockWithKey(password: string): Promise<boolean> {
+        const result = await exec(['unlock', password, '--raw']);
 
-export async function getSecret(itemName: string): Promise<string | undefined> {
-    if (cache.has(itemName)) return cache.get(itemName);
-    if (!sessionKey) return undefined;
+        if (result.code !== 0) return false;
 
-    const result = await exec(['get', 'password', itemName, '--session', sessionKey]);
-    if (result.code !== 0) return undefined;
+        this.sessionKey = result.stdout.trim();
 
-    const secret = result.stdout.trim();
-    cache.set(itemName, secret);
-    return secret;
-}
+        return true;
+    }
 
-export function clearSession() {
-    sessionKey = undefined;
-    cache.clear();
+    async getSecret(itemName: string): Promise<string | undefined> {
+        if (this.cache.has(itemName)) return this.cache.get(itemName);
+        if (!this.sessionKey) return undefined;
+
+        const result = await exec(['get', 'password', itemName, '--session', this.sessionKey]);
+
+        if (result.code !== 0) return undefined;
+
+        const secret = result.stdout.trim();
+
+        this.cache.set(itemName, secret);
+
+        return secret;
+    }
+
+    clearSession(): void {
+        this.sessionKey = undefined;
+        this.cache.clear();
+    }
 }
