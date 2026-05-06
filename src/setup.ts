@@ -98,33 +98,47 @@ export class ProfileSetup {
         return { name, profile: { provider, keys: { [envVar]: keyValue } } };
     }
 
-    async configureDirectories(): Promise<void> {
-        const profileNames = Object.keys(this.config.get().profiles);
-        if (profileNames.length === 0) return;
+    async configureDirectories(profileName: string): Promise<void> {
+        this.ctx.ui.notify(
+            `Add directories that should activate the "${profileName}" profile. Leave blank when done.`,
+            'info'
+        );
 
-        this.ctx.ui.notify('Map directories to profiles. Leave blank to finish.', 'info');
+        let count = 0;
 
         while (true) {
             const dir = await this.ctx.ui.input(
-                'Directory path (leave blank to finish):',
+                count === 0
+                    ? 'First directory path (leave blank to skip):'
+                    : 'Add another directory (leave blank to finish):',
                 'e.g. ~/work'
             );
+
             if (!dir?.trim()) break;
 
-            const target = await this.ctx.ui.select(`Profile for "${dir}"?`, profileNames);
-            if (!target) break;
+            this.config.addDirectory(dir, profileName);
 
-            this.config.addDirectory(dir, target);
+            count++;
+
+            this.ctx.ui.notify(`✓ "${dir}" → "${profileName}"`, 'info');
         }
 
-        const profileNamesWithNone = [...profileNames, '(none)'];
-        const defaultProfile = await this.ctx.ui.select(
-            'Default profile when no directory matches?',
-            profileNamesWithNone
-        );
+        if (count === 0) return;
 
-        if (defaultProfile && defaultProfile !== '(none)') {
-            this.config.setDefault(defaultProfile);
+        const profileNames = Object.keys(this.config.get().profiles);
+
+        if (profileNames.length > 1) {
+            const profileNamesWithNone = [...profileNames, '(none)'];
+            const defaultProfile = await this.ctx.ui.select(
+                'Default profile when no directory matches?',
+                profileNamesWithNone
+            );
+
+            if (defaultProfile && defaultProfile !== '(none)') {
+                this.config.setDefault(defaultProfile);
+            }
+        } else {
+            this.config.setDefault(profileName);
         }
     }
 
@@ -155,7 +169,7 @@ export class ProfileSetup {
                             'Map directories like ~/work to this profile'
                         );
 
-                        if (setupDirs) await this.configureDirectories();
+                        if (setupDirs) await this.configureDirectories(result.name);
                     }
 
                     await this.config.save();
