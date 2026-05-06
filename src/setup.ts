@@ -3,6 +3,7 @@ import { DynamicBorder } from '@mariozechner/pi-coding-agent';
 import { Container, type SelectItem, SelectList, Spacer, Text } from '@mariozechner/pi-tui';
 import { getSecret, unlock } from './bitwarden.js';
 import { loadConfig, type Profile, type ProfilesConfig, saveConfig } from './config.js';
+import { MaskedInput } from './masked-input.js';
 
 const KNOWN_PROVIDERS: Record<string, string> = {
     anthropic: 'ANTHROPIC_API_KEY',
@@ -216,7 +217,7 @@ async function createProfile(
     let keyValue: string;
 
     if (useBitwarden) {
-        const unlocked = await unlock((title, placeholder) => ctx.ui.input(title, placeholder));
+        const unlocked = await unlock((title) => promptPassword(ctx, title));
 
         if (!unlocked) {
             ctx.ui.notify('Could not unlock Bitwarden vault.', 'error');
@@ -347,4 +348,60 @@ export async function runSetup(
             }
         }
     }
+}
+
+export async function promptPassword(
+    ctx: ExtensionCommandContext,
+    label: string
+): Promise<string | undefined> {
+    return ctx.ui.custom<string | undefined>((tui, theme, _kb, done) => {
+        const container = new Container();
+        const input = new MaskedInput(theme.fg('accent', label));
+
+        let _focused = false;
+
+        input.onSubmit = (val) => done(val || undefined);
+        input.onCancel = () => done(undefined);
+
+        container.addChild(new DynamicBorder((s: string) => theme.fg('accent', s)));
+        container.addChild(
+            new Text(
+                `  ${theme.fg('accent', theme.bold('Bitwarden'))}  ${theme.fg('muted', 'vault unlock required')}`,
+                1,
+                0
+            )
+        );
+
+        container.addChild(new Text(theme.fg('borderAccent', '─'.repeat(40)), 0, 0));
+        container.addChild(new Spacer(1));
+        container.addChild(input);
+        container.addChild(new Spacer(1));
+        container.addChild(
+            new Text(
+                `  ${theme.fg('dim', 'enter')} ${theme.fg('muted', 'confirm')}  ${theme.fg('dim', 'esc')} ${theme.fg('muted', 'cancel')}`,
+                1,
+                0
+            )
+        );
+        container.addChild(new DynamicBorder((s: string) => theme.fg('accent', s)));
+
+        return {
+            render: (w) => container.render(w),
+            invalidate: () => {
+                container.invalidate();
+                input.invalidate();
+            },
+            handleInput: (data) => {
+                input.handleInput(data);
+                tui.requestRender();
+            },
+            get focused() {
+                return _focused;
+            },
+            set focused(val: boolean) {
+                _focused = val;
+                input.focused = val;
+            }
+        };
+    });
 }
