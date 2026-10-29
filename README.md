@@ -133,13 +133,13 @@ Any provider not listed can be added by selecting `other` during setup and enter
 
 ## Session Start Behaviour
 
-At `session_start`, pi-profiles:
+pi-profiles registers credentials in two phases so pi sees the active provider as early as possible:
 
-1. Resolves the active profile by matching `cwd` against configured directories (longest match wins)
-2. Falls back to `defaultProfile` if no directory matches
-3. Fetches any `bw://` keys from the Bitwarden vault (prompting to unlock if needed)
-4. Registers resolved keys with pi via `pi.registerProvider(providerId, { apiKey })` (or injects them into `process.env` for legacy/`other` providers)
-5. Emits a notification confirming the active profile
+**At startup (extension factory):** pi-profiles resolves the profile for the launch directory and registers any keys it can obtain without prompting — literal keys and `bw://` keys from an already-unlocked vault. This makes pi's startup availability check and default-model selection see the provider, avoiding the "No models available" warning.
+
+**At `session_start`:** pi-profiles re-resolves the profile for the current directory (longest match wins, falling back to `defaultProfile`), unlocks Bitwarden interactively if needed, and registers any remaining keys. This also handles directory switches.
+
+In both phases, keys are registered via `pi.registerProvider(providerId, { apiKey })` (or injected into `process.env` for legacy/`other` providers). A notification confirms the active profile once the session starts.
 
 If no config exists, pi-profiles prompts you to run `/profile list` to get started.
 
@@ -148,6 +148,7 @@ If no config exists, pi-profiles prompts you to run `/profile list` to get start
 - **Keys are memory-only** — nothing fetched from Bitwarden is written to disk. Provider registrations are removed and the Bitwarden session key and all fetched secrets are cleared on `session_shutdown`.
 - **Stored credentials take precedence** — if you have signed in to a provider through pi's `/login` (OAuth/subscription), that stored credential wins over the profile's API key.
 - **Custom TUI is not available at `session_start`** — the Bitwarden master password prompt during session start uses plain text input rather than the masked input used in `/profile list`. This is a pi lifecycle limitation.
+- **Locked vault at startup** — when a `bw://` key's vault is locked when pi starts, the key can only be registered after the interactive unlock at `session_start`, so pi may briefly show "No models available" and default the model to "unknown" until then. Unlock the vault first (or use a literal key) to avoid this.
 - **Local `.pi/settings.json` is unaffected** — pi-profiles only manages provider credentials. Project-level pi config still loads and merges as normal.
 - **Longest directory match wins** — if both `~/work` and `~/work/client-a` are mapped to different profiles, opening a session inside `~/work/client-a` uses the more specific mapping.
 - **Legacy configs keep working** — profiles whose `keys` use uppercase environment variable names (e.g. `ANTHROPIC_API_KEY`) are still injected via `process.env`. Re-create them through `/profile list` to use provider-id registration.

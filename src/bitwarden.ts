@@ -49,9 +49,12 @@ export class BitwardenClient {
 
     async getSecret(itemName: string): Promise<string | undefined> {
         if (this.cache.has(itemName)) return this.cache.get(itemName);
-        if (!this.sessionKey) return undefined;
 
-        const result = await exec(['get', 'password', itemName, '--session', this.sessionKey]);
+        const args = this.sessionKey
+            ? ['get', 'password', itemName, '--session', this.sessionKey]
+            : ['get', 'password', itemName];
+
+        const result = await exec(args);
 
         if (result.code !== 0) return undefined;
 

@@ -26,10 +26,47 @@ function applyProfileKeys(pi: ExtensionAPI, resolved: Map<string, string>): Set<
     return registered;
 }
 
-export default function (pi: ExtensionAPI) {
+async function tryResolveNonInteractive(
+    profile: Profile,
+    bw: BitwardenClient
+): Promise<Map<string, string> | null> {
+    const resolved = new Map<string, string>();
+
+    for (const [key, value] of Object.entries(profile.keys)) {
+        if (value.startsWith('bw://')) {
+            if ((await bw.checkStatus()) !== 'unlocked') return null;
+
+            const secret = await bw.getSecret(value.slice(5));
+
+            if (!secret) return null;
+
+            resolved.set(key, secret);
+        } else {
+            resolved.set(key, value);
+        }
+    }
+
+    return resolved;
+}
+
+export default async function (pi: ExtensionAPI) {
     const config = new ConfigManager();
     const bw = new BitwardenClient();
     const registeredProviders = new Set<string>();
+
+    await config.load();
+
+    const initial = config.resolveProfile(process.cwd());
+
+    if (initial) {
+        const resolved = await tryResolveNonInteractive(initial.profile, bw);
+
+        if (resolved) {
+            for (const id of applyProfileKeys(pi, resolved)) {
+                registeredProviders.add(id);
+            }
+        }
+    }
 
     async function resolveKeys(
         profile: Profile,
