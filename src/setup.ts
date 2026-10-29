@@ -1,4 +1,4 @@
-import type { ExtensionCommandContext } from '@mariozechner/pi-coding-agent';
+import type { ExtensionCommandContext } from '@earendil-works/pi-coding-agent';
 import type { BitwardenClient } from './bitwarden.js';
 import type { ConfigManager } from './config.js';
 import { KNOWN_PROVIDERS, type Profile } from './types.js';
@@ -34,11 +34,11 @@ export class ProfileSetup {
 
         if (!provider) return null;
 
-        const envVar = isKnown
+        const credentialTarget = isKnown
             ? KNOWN_PROVIDERS[provider]
             : await this.ctx.ui.input('Environment variable name:', 'API_KEY');
 
-        if (!envVar) return null;
+        if (!credentialTarget) return null;
 
         const keyMode = await this.ctx.ui.select(`How to store the API key for "${name}"?`, [
             'Bitwarden (recommended)',
@@ -55,7 +55,7 @@ export class ProfileSetup {
             if (!unlocked) return null;
 
             const bwItemName = await this.ctx.ui.input(
-                `Bitwarden item name for "${name}" ${envVar}:`,
+                `Bitwarden item name for "${name}" ${credentialTarget}:`,
                 'e.g. Work Anthropic Key'
             );
 
@@ -81,7 +81,7 @@ export class ProfileSetup {
             keyValue = literal;
         }
 
-        return { name, profile: { provider, keys: { [envVar]: keyValue } } };
+        return { name, profile: { provider, keys: { [credentialTarget]: keyValue } } };
     }
 
     async configureDirectories(profileName: string): Promise<void> {

@@ -18,27 +18,33 @@ export type ProfileAction =
     | null;
 
 export const KNOWN_PROVIDERS: Record<string, string> = {
-    Anthropic: 'ANTHROPIC_API_KEY',
-    'Azure OpenAI Responses': 'AZURE_OPENAI_API_KEY',
-    OpenAI: 'OPENAI_API_KEY',
-    DeepSeek: 'DEEPSEEK_API_KEY',
-    'Google Gemini': 'GEMINI_API_KEY',
-    Mistral: 'MISTRAL_API_KEY',
-    Groq: 'GROQ_API_KEY',
-    Cerebras: 'CEREBRAS_API_KEY',
-    xAI: 'XAI_API_KEY',
-    OpenRouter: 'OPENROUTER_API_KEY',
-    'Vercel AI Gateway': 'AI_GATEWAY_API_KEY',
-    ZAI: 'ZAI_API_KEY',
-    'OpenCode Zen': 'OPENCODE_API_KEY',
-    'OpenCode Go': 'OPENCODE_API_KEY',
-    'Hugging Face': 'HF_TOKEN',
-    Fireworks: 'FIREWORKS_API_KEY',
-    'Kimi For Coding': 'KIMI_API_KEY',
-    MiniMax: 'MINIMAX_API_KEY',
-    'MiniMax (China)': 'MINIMAX_CN_API_KEY',
-    'Xiaomi MiMo': 'XIAOMI_API_KEY',
-    'Xiaomi MiMo Token Plan (China)': 'XIAOMI_TOKEN_PLAN_CN_API_KEY',
-    'Xiaomi MiMo Token Plan (Amsterdam)': 'XIAOMI_TOKEN_PLAN_AMS_API_KEY',
-    'Xiaomi MiMo Token Plan (Singapore)': 'XIAOMI_TOKEN_PLAN_SGP_API_KEY'
+    Anthropic: 'anthropic',
+    'Azure OpenAI Responses': 'azure',
+    OpenAI: 'openai',
+    DeepSeek: 'deepseek',
+    'Google Gemini': 'google',
+    Mistral: 'mistral',
+    Groq: 'groq',
+    Cerebras: 'cerebras',
+    xAI: 'xai',
+    OpenRouter: 'openrouter',
+    'Vercel AI Gateway': 'vercel-ai-gateway',
+    ZAI: 'zai',
+    'OpenCode Zen': 'opencode',
+    'OpenCode Go': 'opencode-go',
+    'Hugging Face': 'huggingface',
+    Fireworks: 'fireworks',
+    'Kimi For Coding': 'kimi-coding',
+    MiniMax: 'minimax',
+    'MiniMax (China)': 'minimax-cn',
+    'Xiaomi MiMo': 'xiaomi',
+    'Xiaomi MiMo Token Plan (China)': 'xiaomi-token-plan-cn',
+    'Xiaomi MiMo Token Plan (Amsterdam)': 'xiaomi-token-plan-ams',
+    'Xiaomi MiMo Token Plan (Singapore)': 'xiaomi-token-plan-sgp'
 } as const;
+
+const KNOWN_PROVIDER_IDS = Object.values(KNOWN_PROVIDERS) as string[];
+
+export function isKnownProviderId(key: string): boolean {
+    return KNOWN_PROVIDER_IDS.includes(key);
+}

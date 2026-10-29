@@ -1,12 +1,59 @@
-import type { ExtensionAPI } from '@mariozechner/pi-coding-agent';
+import type { ExtensionAPI } from '@earendil-works/pi-coding-agent';
 import { BitwardenClient } from './bitwarden.js';
 import { ConfigManager } from './config.js';
 import { ProfileSetup } from './setup.js';
+import { isKnownProviderId, type Profile } from './types.js';
 import { ProfileUI } from './ui.js';
+
+function escapeApiKey(key: string): string {
+    const escaped = key.split('$').join('$$');
+
+    return escaped.startsWith('!') ? `$${escaped}` : escaped;
+}
+
+function applyProfileKeys(pi: ExtensionAPI, resolved: Map<string, string>): Set<string> {
+    const registered = new Set<string>();
+
+    for (const [key, secret] of resolved) {
+        if (isKnownProviderId(key)) {
+            pi.registerProvider(key, { apiKey: escapeApiKey(secret) });
+            registered.add(key);
+        } else {
+            process.env[key] = secret;
+        }
+    }
+
+    return registered;
+}
 
 export default function (pi: ExtensionAPI) {
     const config = new ConfigManager();
     const bw = new BitwardenClient();
+    const registeredProviders = new Set<string>();
+
+    async function resolveKeys(
+        profile: Profile,
+        unlock: () => Promise<boolean>,
+        fetchSecret: (itemName: string) => Promise<string | null | undefined>
+    ): Promise<Map<string, string> | null> {
+        const resolved = new Map<string, string>();
+
+        for (const [key, value] of Object.entries(profile.keys)) {
+            if (value.startsWith('bw://')) {
+                if (!(await unlock())) return null;
+
+                const secret = await fetchSecret(value.slice(5));
+
+                if (!secret) return null;
+
+                resolved.set(key, secret);
+            } else {
+                resolved.set(key, value);
+            }
+        }
+
+        return resolved;
+    }
 
     pi.registerCommand('profile', {
         description: "Show active profile, or 'list' to manage profiles",
@@ -26,16 +73,16 @@ export default function (pi: ExtensionAPI) {
                     if (!profile) return;
 
                     const ui = new ProfileUI(ctx);
-                    for (const [envVar, value] of Object.entries(profile.keys)) {
-                        if (value.startsWith('bw://')) {
-                            const unlocked = await ui.unlockBitwarden(bw);
-                            if (!unlocked) return;
+                    const resolved = await resolveKeys(
+                        profile,
+                        () => ui.unlockBitwarden(bw),
+                        (itemName) => ui.fetchSecret(bw, itemName)
+                    );
 
-                            const secret = await ui.fetchSecret(bw, value.slice(5));
-                            if (secret) process.env[envVar] = secret;
-                        } else {
-                            process.env[envVar] = value;
-                        }
+                    if (!resolved) return;
+
+                    for (const id of applyProfileKeys(pi, resolved)) {
+                        registeredProviders.add(id);
                     }
 
                     ctx.ui.notify(`Switched to profile "${result.forceActivate}"`, 'info');
@@ -74,49 +121,57 @@ export default function (pi: ExtensionAPI) {
 
         const { name, profile } = match;
 
-        for (const [envVar, value] of Object.entries(profile.keys)) {
-            if (value.startsWith('bw://')) {
+        const resolved = await resolveKeys(
+            profile,
+            async () => {
                 const status = await bw.checkStatus();
 
-                if (status === 'locked') {
-                    const password = await ctx.ui.input(
-                        'Bitwarden master password:',
-                        'Unlock your vault'
-                    );
-
-                    if (!password) {
-                        ctx.ui.notify('pi-profiles: Bitwarden unlock cancelled.', 'warning');
-                        return;
-                    }
-
-                    const unlocked = await bw.unlockWithKey(password);
-
-                    if (!unlocked) {
-                        ctx.ui.notify('pi-profiles: Bitwarden unlock failed.', 'error');
-                        return;
-                    }
+                if (status === 'unlocked') return true;
+                if (status === 'error') {
+                    ctx.ui.notify('pi-profiles: Could not reach Bitwarden vault.', 'error');
+                    return false;
                 }
 
-                const secret = await bw.getSecret(value.slice(5));
+                const password = await ctx.ui.input(
+                    'Bitwarden master password:',
+                    'Unlock your vault'
+                );
 
-                if (!secret) {
-                    ctx.ui.notify(
-                        `pi-profiles: Could not fetch "${value.slice(5)}" from vault.`,
-                        'error'
-                    );
-                    return;
+                if (!password) {
+                    ctx.ui.notify('pi-profiles: Bitwarden unlock cancelled.', 'warning');
+                    return false;
                 }
 
-                process.env[envVar] = secret;
-            } else {
-                process.env[envVar] = value;
-            }
+                const unlocked = await bw.unlockWithKey(password);
+
+                if (!unlocked) {
+                    ctx.ui.notify('pi-profiles: Bitwarden unlock failed.', 'error');
+                }
+
+                return unlocked;
+            },
+            (itemName) => bw.getSecret(itemName)
+        );
+
+        if (!resolved) return;
+
+        for (const id of applyProfileKeys(pi, resolved)) {
+            registeredProviders.add(id);
         }
 
-        ctx.ui.notify(`pi-profiles: "${name}" active (${match.profile.provider})`, 'info');
+        ctx.ui.notify(`pi-profiles: "${name}" active (${profile.provider})`, 'info');
     });
 
     pi.on('session_shutdown', async () => {
+        for (const id of registeredProviders) {
+            try {
+                pi.unregisterProvider(id);
+            } catch {
+                // Provider may already be unregistered or removed.
+            }
+        }
+
+        registeredProviders.clear();
         bw.clearSession();
     });
 }

@@ -1,6 +1,6 @@
 {
   "name": "pi-profiles",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "Profile switching with Bitwarden for pi.dev",
   "keywords": [
     "pi-package"
@@ -17,12 +17,16 @@
     "lint": "biome check --write"
   },
   "dependencies": {
-    "@bitwarden/cli": "^2026.4.1",
-    "@mariozechner/pi-tui": "^0.73.0"
+    "@bitwarden/cli": "^2026.4.1"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*"
   },
   "devDependencies": {
     "@biomejs/biome": "^2.4.14",
-    "@mariozechner/pi-coding-agent": "^0.73.0",
+    "@earendil-works/pi-coding-agent": "1.4.0",
+    "@earendil-works/pi-tui": "1.4.0",
     "@types/node": "^25.6.0",
     "typescript": "^6.0.3"
   }

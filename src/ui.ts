@@ -1,6 +1,6 @@
-import type { ExtensionCommandContext } from '@mariozechner/pi-coding-agent';
-import { BorderedLoader, DynamicBorder } from '@mariozechner/pi-coding-agent';
-import { Container, type SelectItem, SelectList, Spacer, Text } from '@mariozechner/pi-tui';
+import type { ExtensionCommandContext } from '@earendil-works/pi-coding-agent';
+import { BorderedLoader, DynamicBorder } from '@earendil-works/pi-coding-agent';
+import { Container, type SelectItem, SelectList, Spacer, Text } from '@earendil-works/pi-tui';
 import type { BitwardenClient } from './bitwarden.js';
 import { MaskedInput } from './masked-input.js';
 import type { ProfileAction, ProfilesConfig } from './types.js';

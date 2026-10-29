@@ -5,7 +5,7 @@ import {
     Key,
     matchesKey,
     truncateToWidth
-} from '@mariozechner/pi-tui';
+} from '@earendil-works/pi-tui';
 
 export class MaskedInput implements Component, Focusable {
     focused: boolean = false;
